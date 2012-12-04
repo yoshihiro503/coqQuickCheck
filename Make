@@ -1,0 +1,17 @@
+#-R . CoqQuickCheck
+Eq.v
+Show.v
+Functor.v
+Monad.v
+Gen.v
+QuickCheck.v
+Test.v
+ExtrOcamlGen.v
+Extr.v
+OCAMLC = "ocamlc -c"
+-custom "$(OCAMLC) main.ml" "main.ml coq.cmo" main.cmo
+-custom "$(OCAMLC) coq.mli" "coq.ml" coq.cmi
+-custom "$(OCAMLC) coq.ml" "coq.cmi" coq.cmo
+-custom "ocamlmktop -o top coq.cmo main.cmo" "main.cmo" top
+
+
