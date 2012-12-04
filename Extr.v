@@ -1,4 +1,4 @@
 Require Import ExtrOcamlBasic ExtrOcamlString ExtrOcamlGen.
-Require Import QuickCheck TestCase.
+Require Import QuickCheck Test.
 
 Extraction "coq" results.
