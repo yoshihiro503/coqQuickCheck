@@ -1,4 +1,8 @@
+*~
 *.vo
 *.glob
 *.v.d
 
+*.cm[ioxa]
+*.o
+*.annot
