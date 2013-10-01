@@ -39,8 +39,9 @@ $(call includecmdwithout@,$(COQBIN)coqtop -config)
 #                        #
 ##########################
 
-COQLIBS?= -R . CoqQuickCheck
-COQDOCLIBS?=-R . CoqQuickCheck
+OCAMLLIBS?=
+COQLIBS?= -R .. CoqQuickCheck
+COQDOCLIBS?=-R .. CoqQuickCheck
 
 ##########################
 #                        #
@@ -48,6 +49,7 @@ COQDOCLIBS?=-R . CoqQuickCheck
 #                        #
 ##########################
 
+OCAMLC=ocamlc -c
 
 OPT?=
 COQDEP?=$(COQBIN)coqdep -c
@@ -58,6 +60,42 @@ COQC?=$(COQBIN)coqc
 GALLINA?=$(COQBIN)gallina
 COQDOC?=$(COQBIN)coqdoc
 COQCHK?=$(COQBIN)coqchk
+
+COQSRCLIBS?=-I $(COQLIB)kernel -I $(COQLIB)lib \
+  -I $(COQLIB)library -I $(COQLIB)parsing \
+  -I $(COQLIB)pretyping -I $(COQLIB)interp \
+  -I $(COQLIB)proofs -I $(COQLIB)tactics \
+  -I $(COQLIB)toplevel \
+  -I $(COQLIB)plugins/cc \
+  -I $(COQLIB)plugins/decl_mode \
+  -I $(COQLIB)plugins/extraction \
+  -I $(COQLIB)plugins/field \
+  -I $(COQLIB)plugins/firstorder \
+  -I $(COQLIB)plugins/fourier \
+  -I $(COQLIB)plugins/funind \
+  -I $(COQLIB)plugins/interface \
+  -I $(COQLIB)plugins/micromega \
+  -I $(COQLIB)plugins/nsatz \
+  -I $(COQLIB)plugins/omega \
+  -I $(COQLIB)plugins/quote \
+  -I $(COQLIB)plugins/ring \
+  -I $(COQLIB)plugins/romega \
+  -I $(COQLIB)plugins/rtauto \
+  -I $(COQLIB)plugins/setoid_ring \
+  -I $(COQLIB)plugins/subtac \
+  -I $(COQLIB)plugins/subtac/test \
+  -I $(COQLIB)plugins/syntax \
+  -I $(COQLIB)plugins/xml
+ZFLAGS=$(OCAMLLIBS) $(COQSRCLIBS) -I $(CAMLP4LIB)
+
+CAMLC?=$(OCAMLC) -c -rectypes
+CAMLOPTC?=$(OCAMLOPT) -c -rectypes
+CAMLLINK?=$(OCAMLC) -rectypes
+CAMLOPTLINK?=$(OCAMLOPT) -rectypes
+GRAMMARS?=grammar.cma
+CAMLP4EXTEND?=pa_extend.cmo pa_macro.cmo q_MLast.cmo
+CAMLP4OPTIONS?=-loc loc
+PP?=-pp "$(CAMLP4BIN)$(CAMLP4)o -I $(CAMLLIB) -I . $(COQSRCLIBS) $(CAMLP4EXTEND) $(GRAMMARS) $(CAMLP4OPTIONS) -impl"
 
 ##################
 #                #
@@ -80,17 +118,15 @@ endif
 #                    #
 ######################
 
-VFILES:=QuickCheck.v\
-  Gen.v\
-  Monad.v\
-  Functor.v\
-  Show.v\
-  Eq.v
+VFILES:=Extr.v\
+  ExtrOcamlGen.v\
+  Test.v
 
 -include $(addsuffix .d,$(VFILES))
 .SECONDARY: $(addsuffix .d,$(VFILES))
 
 VOFILES:=$(VFILES:.v=.vo)
+VOFILES1=$(patsubst ../%,%,$(filter ../%,$(VOFILES)))
 GLOBFILES:=$(VFILES:.v=.glob)
 VIFILES:=$(VFILES:.v=.vi)
 GFILES:=$(VFILES:.v=.g)
@@ -103,7 +139,10 @@ GHTMLFILES:=$(VFILES:.v=.g.html)
 #                                     #
 #######################################
 
-all: $(VOFILES) 
+all: $(VOFILES) $(CMOFILES) $(if ifeq '$(HASNATDYNLINK)' 'true',$(CMXSFILES)) top\
+  coq.cmo\
+  coq.cmi\
+  main.cmo
 
 spec: $(VIFILES)
 
@@ -139,6 +178,24 @@ beautify: $(VFILES:=.beautified)
 
 .PHONY: all opt byte archclean clean install userinstall depend html validate
 
+###################
+#                 #
+# Custom targets. #
+#                 #
+###################
+
+top: main.cmo
+	ocamlmktop -o top coq.cmo main.cmo
+
+coq.cmo: coq.cmi
+	$(OCAMLC) coq.ml
+
+coq.cmi: coq.ml
+	$(OCAMLC) coq.mli
+
+main.cmo: main.ml coq.cmo
+	$(OCAMLC) main.ml
+
 ####################
 #                  #
 # Special targets. #
@@ -155,7 +212,7 @@ userinstall:
 	+$(MAKE) USERINSTALL=true install
 
 install:
-	for i in $(VOFILES); do \
+	cd ..; for i in $(VOFILES1); do \
 	 install -d `dirname $(DSTROOT)$(COQLIBINSTALL)/CoqQuickCheck/$$i`; \
 	 install -m 0644 $$i $(DSTROOT)$(COQLIBINSTALL)/CoqQuickCheck/$$i; \
 	done
@@ -167,9 +224,16 @@ install-doc:
 	done
 
 clean:
+	rm -f $(ALLCMOFILES) $(CMIFILES) $(CMAFILES)
+	rm -f $(ALLCMOFILES:.cmo=.cmx) $(CMXAFILES) $(CMXSFILES) $(ALLCMOFILES:.cmo=.o) $(CMXAFILES:.cmxa=.a)
+	rm -f $(addsuffix .d,$(MLFILES) $(MLIFILES) $(ML4FILES) $(MLLIBFILES) $(MLPACKFILES))
 	rm -f $(VOFILES) $(VIFILES) $(GFILES) $(VFILES:.v=.v.d) $(VFILES:=.beautified) $(VFILES:=.old)
 	rm -f all.ps all-gal.ps all.pdf all-gal.pdf all.glob $(VFILES:.v=.glob) $(VFILES:.v=.tex) $(VFILES:.v=.g.tex) all-mli.tex
 	- rm -rf html mlihtml
+	- rm -rf top
+	- rm -rf coq.cmo
+	- rm -rf coq.cmi
+	- rm -rf main.cmo
 
 archclean:
 	rm -f *.cmx *.o
@@ -193,6 +257,18 @@ Makefile: Make
 # Implicit rules. #
 #                 #
 ###################
+
+%.cmo: %.ml
+	$(CAMLC) $(ZDEBUG) $(ZFLAGS) $<
+
+%.cmx: %.ml
+	$(CAMLOPTC) $(ZDEBUG) $(ZFLAGS) $<
+
+%.ml.d: %.ml
+	$(OCAMLDEP) -slash $(OCAMLLIBS) "$<" > "$@" || ( RV=$$?; rm -f "$@"; exit $${RV} )
+
+%.cmxs: %.cmx
+	$(CAMLOPTLINK) $(ZDEBUG) $(ZFLAGS) -shared -o $@ $<
 
 %.vo %.glob: %.v
 	$(COQC) $(COQDEBUG) $(COQFLAGS) $*
